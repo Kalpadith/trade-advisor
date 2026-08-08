@@ -30,6 +30,7 @@ class BacktestConfig:
     entry_valid_bars: int = 5
     breakeven_after_tp1: bool = True
     warmup_bars: int = 250
+    market: str = "spot"        # spot: long-only, size capped at equity
 
 
 @dataclass
@@ -248,21 +249,27 @@ def run_backtest(
                 bias.iloc[:bias_idx],
                 account_size=equity,
                 risk_pct=cfg.risk_pct,
+                market=cfg.market,
                 prepared=True,
                 swings=full_swings.visible(i),
             )
+            # in spot mode the engine returns shorts with no plan (stop_loss
+            # is None), so this condition also enforces long-only on spot
             if rec.direction in ("long", "short") and rec.stop_loss is not None and rec.entry_zone:
                 limit = (rec.entry_zone[0] + rec.entry_zone[1]) / 2
                 dist = abs(limit - rec.stop_loss)
                 if dist <= 0:
                     continue
-                risk_amount = equity * cfg.risk_pct / 100.0
+                quantity = equity * cfg.risk_pct / 100.0 / dist
+                if cfg.market == "spot":
+                    quantity = min(quantity, equity / limit)  # no leverage on spot
+                risk_amount = quantity * dist
                 pending = _Pending(
                     direction=rec.direction,
                     limit=limit,
                     stop=rec.stop_loss,
                     targets=list(rec.take_profits or []),
-                    quantity=risk_amount / dist,
+                    quantity=quantity,
                     risk_amount=risk_amount,
                     signal_time=ct,
                     expires_pos=i + cfg.entry_valid_bars,
@@ -289,6 +296,7 @@ def run_backtest(
     return BacktestReport(
         symbol=symbol.upper(),
         entry_timeframe=entry_tf,
+        market=cfg.market,  # type: ignore[arg-type]
         start=int(close_times[start_idx]) if start_idx < n else 0,
         end=int(close_times[-1]) if n else 0,
         bars=tested_bars,

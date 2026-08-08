@@ -72,7 +72,7 @@ async function api(path, opts) {
 
 async function loadSymbols() {
   try {
-    const symbols = await api("/api/symbols");
+    const symbols = await api(`/api/symbols?market=${$("market").value}`);
     $("symbol-list").innerHTML = symbols.slice(0, 3000).map((s) => `<option value="${s}">`).join("");
   } catch (e) { /* datalist is a convenience; typing still works */ }
 }
@@ -94,8 +94,16 @@ function renderChart(data) {
 
 function drawPlan(rec) {
   clearPriceLines();
-  if (!rec.entry_zone) return;
   const solid = LightweightCharts.LineStyle.Solid;
+  const dotted = LightweightCharts.LineStyle.Dotted;
+  if (rec.fibonacci) {
+    for (const f of rec.fibonacci.levels) {
+      if (f.kind === "retracement") {
+        addPriceLine(f.price, "#e7b54a88", "fib " + f.ratio.toFixed(3), dotted);
+      }
+    }
+  }
+  if (!rec.entry_zone) return;
   addPriceLine(rec.entry_zone[0], "#4a8fe7", "entry low");
   addPriceLine(rec.entry_zone[1], "#4a8fe7", "entry high");
   if (rec.stop_loss != null) addPriceLine(rec.stop_loss, "#ef5350", "SL", solid);
@@ -106,6 +114,7 @@ function renderCard(rec) {
   const badgeText = { long: "LONG", short: "SHORT", no_trade: "NO TRADE" }[rec.direction];
   let html = `
     <div class="badge ${rec.direction}">${badgeText}</div>
+    <span class="muted" style="margin-left:8px;text-transform:uppercase;font-size:11px;letter-spacing:1px">${rec.market}</span>
     <div class="muted" style="margin-top:6px">
       ${rec.symbol} &middot; ${rec.entry_timeframe} &middot; data as of ${rec.data_as_of.replace("T", " ").slice(0, 16)} UTC
     </div>
@@ -122,7 +131,13 @@ function renderCard(rec) {
     });
     if (rec.position) {
       html += `<tr><td>Size</td><td>${fmt(rec.position.quantity, 4)} (&asymp;${fmtMoney(rec.position.notional)})</td></tr>
-        <tr><td>Risk</td><td>${fmtMoney(rec.position.risk_amount)} (${rec.position.risk_pct}%)</td></tr>`;
+        <tr><td>Risk</td><td>${fmtMoney(rec.position.risk_amount)}</td></tr>`;
+      if (rec.position.leverage != null && rec.position.leverage > 1) {
+        html += `<tr><td>Leverage needed</td><td>~${rec.position.leverage.toFixed(1)}x</td></tr>`;
+      }
+      if (rec.position.size_capped) {
+        html += `<tr><td>Note</td><td>size capped (spot, no leverage)</td></tr>`;
+      }
     }
     html += `</table>`;
   }
@@ -153,13 +168,14 @@ async function runAnalyze() {
   setStatus("Analyzing " + symbol + "...");
   $("run").disabled = true;
   try {
+    const market = $("market").value;
     const [klines, rec] = await Promise.all([
-      api(`/api/klines?symbol=${symbol}&interval=${tf}&limit=300`),
+      api(`/api/klines?symbol=${symbol}&interval=${tf}&limit=300&market=${market}`),
       api("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          symbol, entry_timeframe: tf,
+          symbol, entry_timeframe: tf, market,
           account_size: Number($("account").value) || 10000,
           risk_pct: Number($("risk").value) || 1,
         }),
@@ -232,6 +248,7 @@ async function runBacktest() {
     const body = {
       symbol,
       entry_timeframe: $("timeframe").value,
+      market: $("market").value,
       start: $("bt-start").value || "2025-01-01",
       account_size: Number($("account").value) || 10000,
       risk_pct: Number($("risk").value) || 1,
@@ -263,6 +280,7 @@ function setMode(next) {
 
 $("tab-analyze").addEventListener("click", () => setMode("analyze"));
 $("tab-backtest").addEventListener("click", () => setMode("backtest"));
+$("market").addEventListener("change", loadSymbols);
 $("run").addEventListener("click", () => (mode === "analyze" ? runAnalyze() : runBacktest()));
 $("symbol").addEventListener("keydown", (e) => { if (e.key === "Enter") $("run").click(); });
 

@@ -14,6 +14,8 @@ class Settings(BaseSettings):
         "https://api1.binance.com",
         "https://api4.binance.com",
     ]
+    # USDT-M perpetual futures (no public mirror exists for futures data).
+    binance_futures_base_url: str = "https://fapi.binance.com"
     db_path: Path = Path("data/market.db")
     default_account_size: float = 10_000.0
     default_risk_pct: float = 1.0

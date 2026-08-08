@@ -5,6 +5,7 @@ round numbers - precision here would be false precision."""
 
 import pandas as pd
 
+from tradeadvisor.indicators.fibonacci import GOLDEN_POCKET, FibLevels
 from tradeadvisor.indicators.patterns import (
     BEARISH_PATTERNS,
     BULLISH_PATTERNS,
@@ -208,6 +209,48 @@ def rule_candle_confirmation(df: pd.DataFrame, tf: str, bias_sign: int, weight: 
     if doji:
         return _r("candle_confirmation", tf, 0, weight, "doji - indecision, no confirmation")
     return _r("candle_confirmation", tf, 0, weight, "no notable candle pattern")
+
+
+def rule_fib_confluence(
+    df: pd.DataFrame, tf: str, bias_sign: int, fib: FibLevels | None, weight: float = 8
+) -> RuleResult:
+    """Reward pullbacks into the golden pocket (50-61.8% retracement) of the
+    most recent swing leg in the trend direction; penalize retracements so
+    deep (beyond 78.6%) that the leg itself is in doubt."""
+    if bias_sign == 0:
+        return _r("fib_confluence", tf, 0, weight, "no higher-timeframe bias - fibonacci rule inactive")
+    if fib is None:
+        return _r("fib_confluence", tf, 0, weight, "no clear swing leg to measure fibonacci from")
+    row = df.iloc[-1]
+    close, atr = row["close"], row["atr14"]
+    if _isnan(close, atr) or atr <= 0:
+        return _r("fib_confluence", tf, 0, weight, "no ATR for fibonacci proximity")
+
+    leg_matches_bias = (fib.up and bias_sign > 0) or (not fib.up and bias_sign < 0)
+    if not leg_matches_bias:
+        return _r("fib_confluence", tf, 0, weight,
+                  f"most recent leg points {'up' if fib.up else 'down'}, against the bias - no fib setup")
+
+    tol = 0.5 * atr
+    span = fib.leg_high - fib.leg_low
+    # how far price has retraced the leg (0 = leg end, 1 = leg start)
+    retraced = (fib.leg_high - close) / span if fib.up else (close - fib.leg_low) / span
+
+    if retraced > 0.786 + tol / span:
+        return _r("fib_confluence", tf, -0.5 * bias_sign, weight,
+                  f"retraced {retraced * 100:.0f}% of the leg (beyond 78.6%) - leg validity in doubt")
+
+    gp_lo, gp_hi = (fib.retracement(GOLDEN_POCKET[1]), fib.retracement(GOLDEN_POCKET[0]))
+    lo, hi = min(gp_lo, gp_hi), max(gp_lo, gp_hi)
+    if lo - tol <= close <= hi + tol:
+        return _r("fib_confluence", tf, 1.0 * bias_sign, weight,
+                  f"price in the golden pocket (50-61.8% retracement at {lo:.6g}..{hi:.6g})")
+    r382 = fib.retracement(0.382)
+    if abs(close - r382) <= tol:
+        return _r("fib_confluence", tf, 0.7 * bias_sign, weight,
+                  f"price at the 38.2% retracement ({r382:.6g}) - shallow pullback")
+    return _r("fib_confluence", tf, 0, weight,
+              f"retraced {max(retraced, 0) * 100:.0f}% - not at a fibonacci confluence")
 
 
 def rule_volume_confirmation(df: pd.DataFrame, tf: str, bias_sign: int, weight: float = 5) -> RuleResult:

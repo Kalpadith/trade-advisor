@@ -47,6 +47,66 @@ def test_doji():
     assert not bool(df2["pat_doji"].iloc[-1])
 
 
+def test_bull_harami():
+    down = [(110 - i, 110.6 - i, 109.4 - i, 109.5 - i) for i in range(8)]
+    rows = down + [
+        (104.0, 104.5, 98.5, 99.0),    # large bearish
+        (100.5, 101.6, 100.2, 101.5),  # small bullish inside prior body
+    ]
+    df = add_patterns(df_from_rows(rows))
+    assert bool(df["pat_bull_harami"].iloc[-1])
+    assert not bool(df["pat_bear_harami"].iloc[-1])
+
+
+def test_piercing_line_and_dark_cloud():
+    down = [(110 - i, 110.6 - i, 109.4 - i, 109.5 - i) for i in range(8)]
+    pierce = down + [
+        (104.0, 104.5, 99.5, 100.0),   # bearish, midpoint 102
+        (99.5, 103.6, 99.0, 103.5),    # opens below prior close, closes above midpoint
+    ]
+    df = add_patterns(df_from_rows(pierce))
+    assert bool(df["pat_piercing_line"].iloc[-1])
+
+    up = [(100 + i, 101.1 + i, 99.9 + i, 100.5 + i) for i in range(8)]
+    cloud = up + [
+        (106.0, 110.5, 105.5, 110.0),  # bullish, midpoint 108
+        (110.5, 111.0, 106.4, 106.5),  # opens above prior close, closes below midpoint
+    ]
+    dfc = add_patterns(df_from_rows(cloud))
+    assert bool(dfc["pat_dark_cloud_cover"].iloc[-1])
+
+
+def test_three_white_soldiers_and_black_crows():
+    soldiers = [FLAT] * 4 + [
+        (100.0, 102.2, 99.9, 102.0),
+        (102.0, 104.2, 101.9, 104.0),
+        (104.0, 106.2, 103.9, 106.0),
+    ]
+    df = add_patterns(df_from_rows(soldiers))
+    assert bool(df["pat_three_white_soldiers"].iloc[-1])
+    assert not bool(df["pat_three_black_crows"].iloc[-1])
+
+    crows = [FLAT] * 4 + [
+        (106.0, 106.1, 103.8, 104.0),
+        (104.0, 104.1, 101.8, 102.0),
+        (102.0, 102.1, 99.8, 100.0),
+    ]
+    dfc = add_patterns(df_from_rows(crows))
+    assert bool(dfc["pat_three_black_crows"].iloc[-1])
+    assert not bool(dfc["pat_three_white_soldiers"].iloc[-1])
+
+
+def test_tweezer_bottom():
+    down = [(110 - i, 110.6 - i, 109.4 - i, 109.5 - i) for i in range(8)]
+    rows = down + [
+        (103.0, 103.2, 100.0, 100.5),  # bearish, low 100.0
+        (100.5, 102.8, 100.05, 102.5), # bullish, retests the same low
+    ]
+    df = add_patterns(df_from_rows(rows))
+    assert bool(df["pat_tweezer_bottom"].iloc[-1])
+    assert not bool(df["pat_tweezer_top"].iloc[-1])
+
+
 def test_morning_and_evening_star():
     morning = [FLAT] * 5 + [
         (106.0, 106.5, 99.5, 100.0),   # strong bearish

@@ -1,5 +1,6 @@
 import math
 from datetime import datetime, timezone
+from typing import Literal
 
 import httpx
 import pandas as pd
@@ -27,6 +28,7 @@ OVERLAY_COLUMNS = ["ema20", "ema50", "ema200", "bb_upper", "bb_lower"]
 class AnalyzeRequest(BaseModel):
     symbol: str
     entry_timeframe: str = "1h"
+    market: Literal["spot", "futures"] = "spot"
     account_size: float = Field(gt=0, default=10_000.0)
     risk_pct: float = Field(gt=0, le=10, default=1.0)
 
@@ -34,6 +36,7 @@ class AnalyzeRequest(BaseModel):
 class BacktestRequest(BaseModel):
     symbol: str
     entry_timeframe: str = "1h"
+    market: Literal["spot", "futures"] = "spot"
     start: str = "2024-01-01"  # YYYY-MM-DD UTC
     end: str | None = None
     account_size: float = Field(gt=0, default=10_000.0)
@@ -74,9 +77,14 @@ def health(request: Request):
 
 
 @router.get("/api/symbols")
-async def symbols(request: Request, quote: str = "USDT"):
+async def symbols(
+    request: Request,
+    quote: str = "USDT",
+    market: Literal["spot", "futures"] = "spot",
+):
     try:
-        return await run_in_threadpool(request.app.state.service.adapter.list_symbols, quote)
+        adapter = request.app.state.service.adapter_for(market)
+        return await run_in_threadpool(adapter.list_symbols, quote)
     except Exception as exc:
         raise _translate_errors(exc)
 
@@ -87,6 +95,7 @@ async def klines(
     symbol: str,
     interval: str = Query("1h"),
     limit: int = Query(300, ge=50, le=1000),
+    market: Literal["spot", "futures"] = "spot",
 ):
     if interval not in INTERVAL_MS:
         raise HTTPException(422, f"interval must be one of {list(INTERVAL_MS)}")
@@ -94,7 +103,7 @@ async def klines(
     def _work():
         service = request.app.state.service
         engine = request.app.state.engine
-        df = service.get(symbol, interval, lookback_bars=limit)
+        df = service.get(symbol, interval, lookback_bars=limit, market=market)
         if df.empty:
             raise HTTPException(404, "no candles for this symbol/interval")
         return engine.prepare_entry(df)
@@ -149,6 +158,7 @@ async def analyze(request: Request, body: AnalyzeRequest):
             body.entry_timeframe,
             body.account_size,
             body.risk_pct,
+            body.market,
         )
     except Exception as exc:
         raise _translate_errors(exc)
@@ -172,13 +182,15 @@ async def backtest(request: Request, body: BacktestRequest):
 
     def _work() -> BacktestReport:
         frames = load_backtest_frames(
-            request.app.state.service, body.symbol, body.entry_timeframe, start_ms, end_ms
+            request.app.state.service, body.symbol, body.entry_timeframe,
+            start_ms, end_ms, market=body.market,
         )
         cfg = BacktestConfig(
             account_size=body.account_size,
             risk_pct=body.risk_pct,
             fee_pct=settings.fee_pct,
             slippage_pct=settings.slippage_pct,
+            market=body.market,
         )
         return run_backtest(body.symbol, body.entry_timeframe, frames, cfg,
                             start_ms=start_ms, end_ms=end_ms)

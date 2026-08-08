@@ -1,11 +1,13 @@
 # Trade Advisor
 
-Rule-based crypto trade advisory tool. Ask it about a coin and it fetches
-live + historical Binance data, runs multi-timeframe technical analysis, and
-produces a trade recommendation: direction (long / short / **no trade**),
-suggested holding period, entry zone, stop loss, take-profit targets,
-fixed-risk position size, a confidence score — and the full reasoning trail
-showing which rules fired and what each contributed.
+Rule-based crypto trade advisory tool for **spot and USDT-M futures**. Ask it
+about a coin and it fetches live + historical Binance data, runs
+multi-timeframe technical analysis (indicators, candlestick patterns,
+support/resistance, Fibonacci), and produces a trade recommendation:
+direction (long / short / **no trade**), suggested holding period, entry
+zone, stop loss, take-profit targets, fixed-risk position size (with the
+leverage a futures position would need), a confidence score — and the full
+reasoning trail showing which rules fired and what each contributed.
 
 > **This is decision support, not financial advice.** No indicator system
 > reliably predicts markets. What this tool gives you is consistency,
@@ -38,9 +40,11 @@ tadvisor fetch BTCUSDT
 
 # analyze: prints direction, entry zone, SL, TPs, sizing + reasoning
 tadvisor analyze BTCUSDT --tf 1h --account 10000 --risk 1
+tadvisor analyze BTCUSDT --tf 4h --market futures --raw   # futures + fib/S-R dump
 
 # backtest the exact same engine over history
-tadvisor backtest BTCUSDT --tf 4h --start 2026-01-01
+tadvisor backtest BTCUSDT --tf 4h --start 2026-01-01                  # spot (long-only)
+tadvisor backtest BTCUSDT --tf 4h --market futures --start 2026-01-01 # long + short
 
 # web dashboard (chart + recommendation card + backtest tab)
 tadvisor serve            # -> http://127.0.0.1:8000
@@ -55,14 +59,31 @@ against a higher **bias** timeframe (trend) and a **context** timeframe
 1. **Bias timeframe (weight 40):** EMA 20/50/200 stack, MACD histogram,
    ADX regime. ADX < 20 flags the market as choppy and can veto the trade.
 2. **Context timeframe (weight 20):** price vs EMA50, RSI regime.
-3. **Entry timeframe (weight 40):** RSI pullback in trend direction,
-   stochastic cross, proximity to detected support/resistance, candlestick
-   confirmation (engulfing, hammer, stars...), volume confirmation.
+3. **Entry timeframe (weight 48):** RSI pullback in trend direction,
+   stochastic cross, proximity to detected support/resistance, **Fibonacci
+   confluence** (pullback into the 50–61.8% golden pocket of the most recent
+   swing leg scores highest; a retracement beyond 78.6% counts against),
+   candlestick confirmation, volume confirmation.
+
+Candlestick patterns detected (all exact, testable definitions): bullish /
+bearish engulfing, hammer, shooting star, morning / evening star, bullish /
+bearish harami, piercing line, dark cloud cover, three white soldiers,
+three black crows, tweezer top / bottom, doji.
 
 Total score ≥ +30 → long, ≤ −30 → short, otherwise no trade. The trade plan
 uses an ATR-based stop (min 1.5×ATR, beyond the nearest confirmed swing,
-max 3×ATR or the trade is skipped), take-profits at 1R/2R/3R (3R capped at
-the next major level), and position size = account × risk% ÷ stop distance.
+max 3×ATR or the trade is skipped), take-profits at 1R/2R/3R — TP3 snaps to
+the nearest major S/R level **or Fibonacci extension (1.272 / 1.618)** beyond
+2R — and position size = account × risk% ÷ stop distance.
+
+## Spot vs futures
+
+| | Spot | Futures (USDT-M perpetuals) |
+|---|---|---|
+| Data source | api.binance.com (mirror fallback) | fapi.binance.com |
+| Directions | Long only — a bearish signal is shown but produces no plan (you can't short spot; it means "stay out / take profit") | Long and short |
+| Sizing | No leverage: size is capped at the account, with the reduced actual risk shown | Full risk-based size, with the leverage required (~x) and a liquidation-risk warning |
+| Backtests | Long-only replay | Long + short replay |
 
 ## Backtester honesty rules
 

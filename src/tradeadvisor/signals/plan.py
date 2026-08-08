@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+from tradeadvisor.indicators.fibonacci import GOLDEN_POCKET, FibLevels
 from tradeadvisor.indicators.levels import Swings, nearest_level, nearest_swing_price
 from tradeadvisor.models import Level, PositionSuggestion, Target
 
@@ -30,6 +31,8 @@ def build_trade_plan(
     direction: str,
     account_size: float,
     risk_pct: float,
+    fib: FibLevels | None = None,
+    market: str = "spot",
 ) -> tuple[TradePlan | None, list[str]]:
     """Returns (plan, warnings). plan is None when no sane plan exists, with
     the reason in warnings."""
@@ -51,6 +54,12 @@ def build_trade_plan(
     lv = nearest_level(levels, close, level_kind, below=(sign > 0))
     if lv is not None:
         candidates.append(lv.price)
+    # golden-pocket retracement is a valid pullback magnet when the measured
+    # leg points the way we want to trade
+    if fib is not None and ((fib.up and sign > 0) or (not fib.up and sign < 0)):
+        gp = fib.retracement(GOLDEN_POCKET[0])  # 50% edge of the pocket
+        if sign * (close - gp) > 0:
+            candidates.append(gp)
 
     if candidates:
         target_edge = max(candidates) if sign > 0 else min(candidates)
@@ -76,31 +85,54 @@ def build_trade_plan(
         ]
     stop = mid - sign * dist
 
-    # --- take profits: 1R / 2R, and 3R unless a strong level sits closer.
+    # --- take profits: 1R / 2R, and 3R unless a strong level or a fibonacci
+    # extension sits closer beyond TP2.
     r = dist
     tp1 = mid + sign * r
     tp2 = mid + sign * 2 * r
     tp3 = mid + sign * 3 * r
+    tp3_candidates: list[float] = []
     opposing_kind = "resistance" if sign > 0 else "support"
     beyond_lv = nearest_level(levels, tp2, opposing_kind, below=(sign < 0))
-    if beyond_lv is not None and sign * (tp3 - beyond_lv.price) > 0:
-        tp3 = beyond_lv.price
+    if beyond_lv is not None:
+        tp3_candidates.append(beyond_lv.price)
+    if fib is not None and ((fib.up and sign > 0) or (not fib.up and sign < 0)):
+        tp3_candidates.extend(fib.extensions.values())
+    for cand in tp3_candidates:
+        if sign * (cand - tp2) > 0 and sign * (tp3 - cand) > 0:
+            tp3 = cand
     targets = [
         Target(price=tp1, r_multiple=1.0, close_pct=50),
         Target(price=tp2, r_multiple=2.0, close_pct=30),
         Target(price=tp3, r_multiple=abs(tp3 - mid) / r, close_pct=20),
     ]
 
-    # --- fixed-risk sizing
+    # --- fixed-risk sizing, market-aware
     risk_amount = account_size * risk_pct / 100.0
     quantity = risk_amount / dist
     notional = quantity * mid
     warnings: list[str] = []
-    if notional > account_size:
-        warnings.append(
-            f"position notional {notional:,.2f} exceeds account size - "
-            f"requires ~{notional / account_size:.1f}x leverage to take full size"
-        )
+    leverage: float | None = None
+    size_capped = False
+    if market == "futures":
+        leverage = max(1.0, notional / account_size)
+        if leverage > 1.0:
+            warnings.append(
+                f"futures: full risk-based size needs ~{leverage:.1f}x leverage "
+                f"({notional:,.2f} notional on a {account_size:,.0f} account) - "
+                "higher leverage brings the liquidation price closer to entry"
+            )
+    else:  # spot: no leverage exists, cap the size at the account
+        if notional > account_size:
+            size_capped = True
+            quantity = account_size / mid
+            notional = quantity * mid
+            risk_amount = quantity * dist
+            warnings.append(
+                f"spot has no leverage: size capped at the full account; risk at the "
+                f"stop falls to {risk_amount:,.2f} ({risk_amount / account_size * 100:.2f}% "
+                "of account) instead of the requested risk"
+            )
 
     position = PositionSuggestion(
         quantity=quantity,
@@ -108,6 +140,8 @@ def build_trade_plan(
         risk_amount=risk_amount,
         account_size=account_size,
         risk_pct=risk_pct,
+        leverage=leverage,
+        size_capped=size_capped,
     )
     return TradePlan(entry_zone=zone, stop_loss=stop, targets=targets,
                      position=position, warnings=warnings), warnings

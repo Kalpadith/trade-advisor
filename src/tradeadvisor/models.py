@@ -8,6 +8,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 Direction = Literal["long", "short", "no_trade"]
+MarketType = Literal["spot", "futures"]
 
 
 class Candle(BaseModel):
@@ -48,6 +49,23 @@ class PositionSuggestion(BaseModel):
     risk_amount: float
     account_size: float
     risk_pct: float
+    # futures: leverage needed to hold the full risk-based size (1.0 = none).
+    # spot: always None; size is capped at the account instead (size_capped).
+    leverage: float | None = None
+    size_capped: bool = False
+
+
+class FibLevel(BaseModel):
+    ratio: float
+    price: float
+    kind: Literal["retracement", "extension"]
+
+
+class FibonacciInfo(BaseModel):
+    leg_up: bool           # True when the measured leg runs low -> high
+    leg_high: float
+    leg_low: float
+    levels: list[FibLevel]
 
 
 class Recommendation(BaseModel):
@@ -56,6 +74,7 @@ class Recommendation(BaseModel):
     data_as_of: datetime   # close time of the last closed candle analyzed
     direction: Direction
     confidence: int        # 0-100
+    market: MarketType = "spot"
     entry_timeframe: str
     holding_period: str
     entry_zone: tuple[float, float] | None = None
@@ -65,6 +84,7 @@ class Recommendation(BaseModel):
     score_total: float
     rules: list[RuleResult]
     levels: list[Level] = []
+    fibonacci: FibonacciInfo | None = None
     warnings: list[str] = []
 
 
@@ -90,6 +110,7 @@ class EquityPoint(BaseModel):
 class BacktestReport(BaseModel):
     symbol: str
     entry_timeframe: str
+    market: MarketType = "spot"
     start: int
     end: int
     bars: int

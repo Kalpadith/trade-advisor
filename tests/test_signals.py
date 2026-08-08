@@ -14,7 +14,7 @@ def test_strong_uptrend_is_not_shorted():
     )
     assert rec.direction in ("long", "no_trade")
     assert rec.score_total > 0
-    assert len(rec.rules) == 10
+    assert len(rec.rules) == 11
     assert any("decision support" in w for w in rec.warnings)
 
 

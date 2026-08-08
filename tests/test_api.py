@@ -47,7 +47,8 @@ class FakeAdapter:
 
 @pytest.fixture
 def client(tmp_path):
-    service = MarketDataService(FakeAdapter(), CandleStore(tmp_path / "t.db"))
+    fake = FakeAdapter()
+    service = MarketDataService({"spot": fake, "futures": fake}, CandleStore(tmp_path / "t.db"))
     app = create_app(settings=Settings(db_path=tmp_path / "t.db"), service=service)
     return TestClient(app)
 
@@ -82,15 +83,32 @@ def test_analyze_endpoint(client):
     assert resp.status_code == 200
     body = resp.json()
     assert body["direction"] in ("long", "short", "no_trade")
-    assert len(body["rules"]) == 10
+    assert len(body["rules"]) == 11
     assert body["symbol"] == "TESTUSDT"
-    if body["direction"] != "no_trade":
+    assert body["market"] == "spot"
+    if body["direction"] == "long":
         assert body["stop_loss"] is not None
         assert body["position"]["account_size"] == 5000
 
 
+def test_analyze_futures_market(client):
+    resp = client.post("/api/analyze", json={
+        "symbol": "TESTUSDT", "entry_timeframe": "1h", "market": "futures",
+    })
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["market"] == "futures"
+    if body["direction"] != "no_trade":
+        assert body["position"]["leverage"] is not None
+
+
 def test_analyze_rejects_bad_timeframe(client):
     resp = client.post("/api/analyze", json={"symbol": "TESTUSDT", "entry_timeframe": "3m"})
+    assert resp.status_code == 422
+
+
+def test_analyze_rejects_bad_market(client):
+    resp = client.post("/api/analyze", json={"symbol": "TESTUSDT", "market": "margin"})
     assert resp.status_code == 422
 
 

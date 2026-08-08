@@ -10,9 +10,10 @@ from datetime import datetime, timezone
 import pandas as pd
 
 from tradeadvisor.indicators.core import enrich
+from tradeadvisor.indicators.fibonacci import FibLevels, compute_fib
 from tradeadvisor.indicators.levels import Swings, cluster_levels, find_swings
 from tradeadvisor.indicators.patterns import add_patterns
-from tradeadvisor.models import Recommendation
+from tradeadvisor.models import FibLevel, FibonacciInfo, Recommendation
 from tradeadvisor.signals import rules as R
 from tradeadvisor.signals.plan import build_trade_plan
 from tradeadvisor.signals.scoring import score
@@ -26,6 +27,17 @@ BIAS_DEADBAND = 10.0
 
 def _ms_to_dt(ms: int) -> datetime:
     return datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
+
+
+def _fib_info(fib: FibLevels | None) -> FibonacciInfo | None:
+    if fib is None:
+        return None
+    levels = [
+        FibLevel(ratio=r, price=p, kind="retracement") for r, p in fib.retracements.items()
+    ] + [
+        FibLevel(ratio=r, price=p, kind="extension") for r, p in fib.extensions.items()
+    ]
+    return FibonacciInfo(leg_up=fib.up, leg_high=fib.leg_high, leg_low=fib.leg_low, levels=levels)
 
 
 class SignalEngine:
@@ -44,6 +56,7 @@ class SignalEngine:
         bias_df: pd.DataFrame,
         account_size: float = 10_000.0,
         risk_pct: float = 1.0,
+        market: str = "spot",
         prepared: bool = False,
         swings: Swings | None = None,
     ) -> Recommendation:
@@ -58,6 +71,7 @@ class SignalEngine:
         last = entry_df.iloc[-1]
         atr = float(last["atr14"]) if pd.notna(last["atr14"]) else math.nan
         levels = cluster_levels(swings, float(last["close"]), atr)
+        fib = compute_fib(swings)
 
         warnings: list[str] = []
 
@@ -79,6 +93,7 @@ class SignalEngine:
             R.rule_rsi_pullback(entry_df, entry_tf, bias_sign),
             R.rule_stoch_cross(entry_df, entry_tf, bias_sign),
             R.rule_sr_proximity(entry_df, entry_tf, bias_sign, levels),
+            R.rule_fib_confluence(entry_df, entry_tf, bias_sign, fib),
             R.rule_candle_confirmation(entry_df, entry_tf, bias_sign),
             R.rule_volume_confirmation(entry_df, entry_tf, bias_sign),
         ]
@@ -90,9 +105,16 @@ class SignalEngine:
 
         entry_zone = stop_loss = None
         targets = position = None
-        if direction != "no_trade":
+        if direction == "short" and market == "spot":
+            # spot cannot short: keep the bearish read visible but plan nothing
+            warnings.append(
+                "bearish signal on the spot market: spot cannot short - stay out, "
+                "or take profit on existing holdings; shorting requires futures"
+            )
+        elif direction != "no_trade":
             plan, plan_warnings = build_trade_plan(
-                entry_df, levels, swings, direction, account_size, risk_pct
+                entry_df, levels, swings, direction, account_size, risk_pct,
+                fib=fib, market=market,
             )
             if plan is None:
                 direction = "no_trade"
@@ -111,6 +133,7 @@ class SignalEngine:
             data_as_of=_ms_to_dt(int(last["close_time"])),
             direction=direction,
             confidence=outcome.confidence,
+            market=market,  # type: ignore[arg-type]
             entry_timeframe=entry_tf,
             holding_period=roles.holding,
             entry_zone=entry_zone,
@@ -120,5 +143,6 @@ class SignalEngine:
             score_total=outcome.total,
             rules=bias_rules + context_rules + entry_rules,
             levels=levels,
+            fibonacci=_fib_info(fib),
             warnings=warnings,
         )
