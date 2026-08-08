@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trade Advisor</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Trade Advisor</h1>
+  <span class="tagline">Rule-based decision support &mdash; not financial advice</span>
+</header>
+
+<nav class="tabs">
+  <button id="tab-analyze" class="tab active">Analyze</button>
+  <button id="tab-backtest" class="tab">Backtest</button>
+</nav>
+
+<section class="controls">
+  <label>Symbol
+    <input id="symbol" list="symbol-list" value="BTCUSDT" autocomplete="off" spellcheck="false">
+    <datalist id="symbol-list"></datalist>
+  </label>
+  <label>Timeframe
+    <select id="timeframe">
+      <option value="15m">15m</option>
+      <option value="1h" selected>1h</option>
+      <option value="4h">4h</option>
+      <option value="1d">1d</option>
+    </select>
+  </label>
+  <label>Account
+    <input id="account" type="number" value="10000" min="1">
+  </label>
+  <label>Risk %
+    <input id="risk" type="number" value="1" min="0.1" max="10" step="0.1">
+  </label>
+  <span id="backtest-controls" class="hidden">
+    <label>From <input id="bt-start" type="date" value="2025-01-01"></label>
+    <label>To <input id="bt-end" type="date"></label>
+  </span>
+  <button id="run" class="primary">Analyze</button>
+  <span id="status"></span>
+</section>
+
+<main id="view-analyze">
+  <div class="layout">
+    <div id="chart" class="panel"></div>
+    <aside id="card" class="panel card">
+      <p class="muted">Enter a symbol and press Analyze.</p>
+    </aside>
+  </div>
+</main>
+
+<main id="view-backtest" class="hidden">
+  <div id="bt-stats" class="stats-grid panel"></div>
+  <div id="bt-chart" class="panel"></div>
+  <div class="panel">
+    <table id="bt-trades">
+      <thead>
+        <tr><th>Dir</th><th>Entry time</th><th>Entry</th><th>Exit</th><th>PnL</th><th>R</th><th>Reason</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</main>
+
+<footer>
+  Rule-based decision support. Not financial advice. Past performance does not guarantee future results.
+</footer>
+
+<script src="vendor/lightweight-charts.standalone.production.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
