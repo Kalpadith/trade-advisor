@@ -19,8 +19,12 @@ class Settings(BaseSettings):
     db_path: Path = Path("data/market.db")
     default_account_size: float = 10_000.0
     default_risk_pct: float = 1.0
+    # spot cost model (taker fee + slippage, % per side)
     fee_pct: float = 0.1
     slippage_pct: float = 0.05
+    # USDT-M futures cost model (taker tier 0 is 0.045%; deep books)
+    futures_fee_pct: float = 0.045
+    futures_slippage_pct: float = 0.02
 
 
 @lru_cache

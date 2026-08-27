@@ -185,11 +185,12 @@ async def backtest(request: Request, body: BacktestRequest):
             request.app.state.service, body.symbol, body.entry_timeframe,
             start_ms, end_ms, market=body.market,
         )
+        futures = body.market == "futures"
         cfg = BacktestConfig(
             account_size=body.account_size,
             risk_pct=body.risk_pct,
-            fee_pct=settings.fee_pct,
-            slippage_pct=settings.slippage_pct,
+            fee_pct=settings.futures_fee_pct if futures else settings.fee_pct,
+            slippage_pct=settings.futures_slippage_pct if futures else settings.slippage_pct,
             market=body.market,
         )
         return run_backtest(body.symbol, body.entry_timeframe, frames, cfg,

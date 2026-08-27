@@ -33,6 +33,8 @@ def build_trade_plan(
     risk_pct: float,
     fib: FibLevels | None = None,
     market: str = "spot",
+    stop_atr_min: float = STOP_ATR_MIN,
+    stop_atr_max: float = STOP_ATR_MAX,
 ) -> tuple[TradePlan | None, list[str]]:
     """Returns (plan, warnings). plan is None when no sane plan exists, with
     the reason in warnings."""
@@ -69,19 +71,20 @@ def build_trade_plan(
     zone = (min(far_edge, close), max(far_edge, close))
     mid = (zone[0] + zone[1]) / 2
 
-    # --- stop: at least 1.5 ATR from zone mid, pushed beyond the nearest
-    # confirmed swing if one is close; if that requires > 3 ATR, walk away.
-    dist = STOP_ATR_MIN * atr
+    # --- stop: at least stop_atr_min ATR from zone mid, pushed beyond the
+    # nearest confirmed swing if one is close; if that requires more than
+    # stop_atr_max ATR, walk away.
+    dist = stop_atr_min * atr
     swing_kind = "L" if sign > 0 else "H"
     ref_price = zone[0] if sign > 0 else zone[1]
     swing = nearest_swing_price(swings, ref_price, swing_kind, below=(sign > 0))
     if swing is not None:
         beyond = sign * (mid - swing) + SWING_BUFFER_ATR * atr
         dist = max(dist, beyond)
-    if dist > STOP_ATR_MAX * atr:
+    if dist > stop_atr_max * atr:
         return None, [
             f"no sane stop placement: protecting the nearest swing needs a stop "
-            f"{dist / atr:.1f}x ATR away (max {STOP_ATR_MAX:.1f}x) - skip this trade"
+            f"{dist / atr:.1f}x ATR away (max {stop_atr_max:.1f}x) - skip this trade"
         ]
     stop = mid - sign * dist
 

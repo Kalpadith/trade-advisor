@@ -1,5 +1,10 @@
 # Trade Advisor
 
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
+![Tests](https://img.shields.io/badge/tests-58%20passing-brightgreen)
+![FastAPI](https://img.shields.io/badge/API-FastAPI-009688)
+![No lookahead](https://img.shields.io/badge/backtests-no%20lookahead-critical)
+
 Rule-based crypto trade advisory tool for **spot and USDT-M futures**. Ask it
 about a coin and it fetches live + historical Binance data, runs
 multi-timeframe technical analysis (indicators, candlestick patterns,
@@ -13,6 +18,40 @@ reasoning trail showing which rules fired and what each contributed.
 > reliably predicts markets. What this tool gives you is consistency,
 > risk discipline, and a backtester to falsify rule ideas before you trust
 > them. "No trade" is a first-class answer. It never places orders.
+
+<!-- Screenshots: run `tadvisor serve`, capture the dashboard (chart +
+     recommendation card) and the backtest tab, save to docs/screenshots/,
+     then uncomment these lines:
+![Dashboard — chart with overlays and recommendation card](docs/screenshots/dashboard.png)
+![Backtest tab — equity curve and trade list](docs/screenshots/backtest.png)
+-->
+
+
+## Highlights
+
+- **Explainable by design** — every recommendation ships with the scored
+  reasoning trail: which rules fired, on which timeframe, worth how many points.
+- **One engine, live and backtested** — the backtester replays the exact
+  `SignalEngine.analyze()` used for live advice; divergence is impossible by
+  construction, and a dedicated test proves no lookahead.
+- **Honest numbers** — pessimistic fills (stop wins ties), fees + slippage on
+  every side, swing points hidden until they'd actually be visible.
+- **Full risk plan, not just a signal** — ATR-based stops sanity-checked
+  against structure, 1R/2R/3R targets that snap to S/R or Fibonacci
+  extensions, and fixed-risk position sizing (with required leverage for futures).
+
+## Architecture
+
+```mermaid
+flowchart LR
+    B[Binance REST<br/>spot + futures] --> D[data/<br/>adapter · SQLite cache<br/>incremental sync]
+    D --> I[indicators/<br/>EMA · MACD · ADX · RSI<br/>swings · S/R · patterns · fib]
+    I --> S[signals/<br/>rules → scoring → trade plan<br/>SignalEngine]
+    S --> API[api/ FastAPI]
+    S --> BT[backtest/<br/>event-loop replay + metrics]
+    API --> W[web/ dashboard<br/>Lightweight Charts]
+    S --> CLI[cli · Typer]
+```
 
 ## Setup
 
@@ -85,6 +124,21 @@ the nearest major S/R level **or Fibonacci extension (1.272 / 1.618)** beyond
 | Sizing | No leverage: size is capped at the account, with the reduced actual risk shown | Full risk-based size, with the leverage required (~x) and a liquidation-risk warning |
 | Backtests | Long-only replay | Long + short replay |
 
+## Per-timeframe tuned profiles
+
+Engine parameters (entry threshold, ADX chop filter, stop width) are defined
+in `EngineParams` (src/tradeadvisor/signals/engine.py) with per-timeframe
+profiles in `PARAMS_BY_TF`, applied identically to live analysis and
+backtests. Reproduce or extend the tuning with `scripts/sweep_15m.py`
+(train/validation split — never pick a config on validation numbers).
+
+**15m profile** (tuned on BTC/ETH futures Jan–Apr 2026, validated
+out-of-sample on May–Aug 2026 plus SOL, futures cost model 0.045%/0.02%):
+threshold 55, ADX ≥ 25, stops ≥ 2.5×ATR. Validation: expectancy improved
+from −0.26R (defaults) to −0.10R and max drawdown from ~75% to ~17% — a
+large improvement, **but 15m never reached positive expectancy**. Every 15m
+recommendation carries a warning saying so. Prefer 4h/1d.
+
 ## Backtester honesty rules
 
 - Same `SignalEngine.analyze()` as live — zero divergence by construction.
@@ -122,5 +176,5 @@ src/tradeadvisor/
   backtest/    event-loop replay + metrics
   api/         FastAPI routes (health, symbols, klines, analyze, backtest)
 web/           dashboard (vanilla JS + Lightweight Charts, no build step)
-tests/         37 tests incl. the lookahead guard and pessimistic-fill rules
+tests/         58 tests incl. the lookahead guard and pessimistic-fill rules
 ```

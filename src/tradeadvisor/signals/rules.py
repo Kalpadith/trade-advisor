@@ -60,16 +60,18 @@ def rule_macd_momentum(df: pd.DataFrame, tf: str, weight: float = 10) -> RuleRes
     return _r("macd_momentum", tf, 0, weight, "MACD histogram flat")
 
 
-def rule_adx_regime(df: pd.DataFrame, tf: str, weight: float = 15) -> tuple[RuleResult, list[str]]:
+def rule_adx_regime(
+    df: pd.DataFrame, tf: str, weight: float = 15, adx_min: float = 20.0
+) -> tuple[RuleResult, list[str]]:
     row = df.iloc[-1]
     adx, dip, dim = row["adx"], row["di_plus"], row["di_minus"]
     if _isnan(adx, dip, dim):
         return _r("adx_regime", tf, 0, weight, "insufficient history for ADX"), []
-    if adx < 20:
-        warn = f"choppy market: ADX {adx:.1f} < 20 on {tf}"
-        return _r("adx_regime", tf, 0, weight, f"ADX {adx:.1f} < 20 - no trend to trade"), [warn]
+    if adx < adx_min:
+        warn = f"choppy market: ADX {adx:.1f} < {adx_min:g} on {tf}"
+        return _r("adx_regime", tf, 0, weight, f"ADX {adx:.1f} < {adx_min:g} - no trend to trade"), [warn]
     direction = 1 if dip > dim else -1
-    strength = 1.0 if adx >= 25 else 0.5
+    strength = 1.0 if adx >= adx_min + 5 else 0.5
     side = "DI+ leads" if direction > 0 else "DI- leads"
     return _r("adx_regime", tf, direction * strength, weight,
               f"ADX {adx:.1f} trending, {side} ({dip:.1f} vs {dim:.1f})"), []

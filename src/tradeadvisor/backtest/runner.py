@@ -147,9 +147,10 @@ def run_backtest(
     config: BacktestConfig | None = None,
     start_ms: int | None = None,
     end_ms: int | None = None,
+    engine: SignalEngine | None = None,
 ) -> BacktestReport:
     cfg = config or BacktestConfig()
-    engine = SignalEngine()
+    engine = engine or SignalEngine()
 
     entry = engine.prepare_entry(frames["entry"])
     context = frames["context"]

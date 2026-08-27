@@ -150,11 +150,12 @@ def backtest(
     typer.echo("Syncing candles...")
     frames = load_backtest_frames(service, symbol, tf, start_ms, end_ms, market=market)
     typer.echo(f"Running backtest over {len(frames['entry'])} {tf} bars (incl. warmup)...")
+    futures = market == "futures"
     cfg = BacktestConfig(
         account_size=account or settings.default_account_size,
         risk_pct=risk or settings.default_risk_pct,
-        fee_pct=settings.fee_pct,
-        slippage_pct=settings.slippage_pct,
+        fee_pct=settings.futures_fee_pct if futures else settings.fee_pct,
+        slippage_pct=settings.futures_slippage_pct if futures else settings.slippage_pct,
         market=market,
     )
     rep = run_backtest(symbol, tf, frames, cfg, start_ms=start_ms, end_ms=end_ms)
