@@ -22,12 +22,9 @@ reasoning trail showing which rules fired and what each contributed.
 > risk discipline, and a backtester to falsify rule ideas before you trust
 > them. "No trade" is a first-class answer. It never places orders.
 
-<!-- Screenshots: run `tadvisor serve`, capture the dashboard (chart +
-     recommendation card) and the backtest tab, save to docs/screenshots/,
-     then uncomment these lines:
 ![Dashboard — chart with overlays and recommendation card](docs/screenshots/dashboard.png)
+
 ![Backtest tab — equity curve and trade list](docs/screenshots/backtest.png)
--->
 
 
 ## Highlights
