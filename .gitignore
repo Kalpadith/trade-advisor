@@ -1,5 +1,5 @@
 .venv/
-data/
+/data/
 docs/upwork/
 *.code-workspace
 __pycache__/
