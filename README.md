@@ -169,6 +169,8 @@ pytest
 
 ## Hosting a demo (Render free tier)
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Kalpadith/trade-advisor)
+
 The repo ships a [render.yaml](render.yaml) blueprint: create a web service on
 [Render](https://render.com) from this repo and it deploys the API + dashboard
 as-is (editable install so the `web/` assets resolve; Frankfurt region so
