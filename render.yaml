@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: trade-advisor
+    runtime: python
+    # Frankfurt: Binance blocks requests from US-hosted IPs (HTTP 451)
+    region: frankfurt
+    plan: free
+    buildCommand: pip install -e .
+    startCommand: tadvisor serve --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9

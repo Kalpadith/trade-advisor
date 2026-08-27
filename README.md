@@ -167,6 +167,16 @@ S/R levels should sit on visually obvious swing clusters.
 pytest
 ```
 
+## Hosting a demo (Render free tier)
+
+The repo ships a [render.yaml](render.yaml) blueprint: create a web service on
+[Render](https://render.com) from this repo and it deploys the API + dashboard
+as-is (editable install so the `web/` assets resolve; Frankfurt region so
+Binance doesn't geo-block the server; `$PORT` binding via `tadvisor serve`).
+Free-tier note: the instance sleeps when idle — the first request after a
+quiet period takes ~30–60s to wake, and the SQLite candle cache is ephemeral
+(it re-syncs on demand).
+
 ## Project layout
 
 ```
