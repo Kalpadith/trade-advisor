@@ -6,6 +6,8 @@
 ![No lookahead](https://img.shields.io/badge/backtests-no%20lookahead-critical)
 ![License: MIT](https://img.shields.io/badge/license-MIT-yellow)
 
+**Live demo:** [trade-advisor-pu57.onrender.com](https://trade-advisor-pu57.onrender.com) — free-tier instance, first load after idle takes ~30–60s to wake.
+
 Rule-based crypto trade advisory tool for **spot and USDT-M futures**. Ask it
 about a coin and it fetches live + historical Binance data, runs
 multi-timeframe technical analysis (indicators, candlestick patterns,
