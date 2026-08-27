@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "trade-advisor"
 version = "0.1.0"
 description = "Rule-based crypto trade advisory tool (decision support, not financial advice)"
+license = {file = "LICENSE"}
 requires-python = ">=3.11"
 dependencies = [
     "pandas>=2.2",

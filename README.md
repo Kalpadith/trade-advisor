@@ -4,6 +4,7 @@
 ![Tests](https://img.shields.io/badge/tests-58%20passing-brightgreen)
 ![FastAPI](https://img.shields.io/badge/API-FastAPI-009688)
 ![No lookahead](https://img.shields.io/badge/backtests-no%20lookahead-critical)
+![License: MIT](https://img.shields.io/badge/license-MIT-yellow)
 
 Rule-based crypto trade advisory tool for **spot and USDT-M futures**. Ask it
 about a coin and it fetches live + historical Binance data, runs
